@@ -12,14 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with: 
-            fetch-depth: 0
+            fetch-depth: '0'
       - name: Checking Variable
         run: |
             bom = `echo release/snapshot/snapshot.bom`
             echo "BOM_FILE=$bom" >> $GITHUB_ENV
             echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
             Tag_Name="SD."
-        #    echo ${{Tag_Name}}
+            echo ${{Tag_Name}}
             echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event first."
             echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
             echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
