@@ -5,13 +5,14 @@ on:
             - development
         paths:
             - 'release/snapshot/snapshot.bom'
+            
 jobs:
     Explore-GitHub-Actions:
         runs-on: ubuntu-latest
         steps:
           - uses: actions/checkout@v2
-                with: 
-                    fetch-depth: 0
+            with:
+                fetch-depth: 0
                 
     
           - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event first."
