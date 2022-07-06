@@ -3,6 +3,8 @@ on:
     push:
         branches:
             - development
+        paths:
+            - 'release/snapshot/snapshot.bom'
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
