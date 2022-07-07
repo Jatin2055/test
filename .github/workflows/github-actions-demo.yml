@@ -19,7 +19,9 @@ jobs:
           echo "BOM_FILE=$bom" >> $GITHUB_ENV
           echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
           Tag_Name="SD."
+          echo $bom
           BUILD_NO=10001
+          echo $BUILD_NO
           Latest_Tag=$(git tag --sort creatordate -l $Tag_Name* | tail -n1)
           if [ -z "$Latest_Tag" ];
           then
