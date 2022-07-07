@@ -8,21 +8,19 @@ on:
 jobs:
   Explore-GitHub-Actions:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v2
-        with: 
-            fetch-depth: '0'
-      - name: Checking Variable
+        with:
+          fetch-depth: '0'
+
+      - name: Setting Variables
         run: |
           bom=`echo release/snapshot/snapshot.bom`
           echo "BOM_FILE=$bom" >> $GITHUB_ENV
           echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
           Tag_Name="SD."
-          echo $bom
-          echo $GITHUB_ENV
           BUILD_NO=10001
-          echo $BUILD_NO
           Latest_Tag=$(git tag --sort creatordate -l $Tag_Name* | tail -n1)
           if [ -z "$Latest_Tag" ];
           then
@@ -34,12 +32,240 @@ jobs:
           fi
           echo "Build Number is: $BUILD_NO"
           echo "RELEASE_NO=$BUILD_NO" >> $GITHUB_ENV
-          echo $RELEASE_NO
-          echo $BOM_FILE
-          echo $Latest_Tag
 
-      
-      - name: List files in the repository
+
+      - name: Display Variables
         run: |
-          ls ${{ github.workspace }}
-          echo "🍏 This job's status is ${{ job.status }}."
+          if [ -s "$BOM_FILE" ]
+          then
+              echo "Snapshot.bom Bom file exists and is its not empty "
+          else
+              echo "Bom file path: $BOM_FILE"
+              echo "Snapshot Bom file does not exist, or its empty "
+              exit 1
+          fi
+          git_hash=$(git rev-parse --short "$GITHUB_SHA")
+          echo "Commit id is: $git_hash"
+          echo "Bom file is: $BOM_FILE"
+
+      - name: Validating Bomfile
+        run: |
+          sed -i 's/[[:blank:]]*$//' $BOM_FILE | cat -vet -
+          sed -i '/^$/d' $BOM_FILE
+          if [[ (! -z $(grep "@Release" "$BOM_FILE")) || (! -z $(grep "@Config" "$BOM_FILE")) || (! -z $(grep "@AsyncConfig" "$BOM_FILE")) || (! -z $(grep "@DBScripts" "$BOM_FILE")) ]]
+          then
+              echo "Started Reading Bom ";
+              i=0
+              deploy_check=False
+              deploy_policy=False
+              deploy_test=False
+              deploy_db=False
+              while IFS="" read -r module || [ -n "$module" ]
+              do
+                  if [[  ($i = 0) && (("$module" == @Release) || ("$module" == @Config) || ("$module" == @AsyncConfig) || ("$module" == @DBScripts)) ]]; then
+                      echo "Bom file has $module as starting"
+                      if [[ "$module" == @Release ]]; then
+                          echo "ACTION_TYPE=RELEASE" >> $GITHUB_ENV
+                      else
+                          if [[ "$module" == @DBScripts ]]; then
+                              deploy_check=False
+                              deploy_policy=False
+                              deploy_db=True
+                          else
+                              deploy_check=True
+                              deploy_policy=False
+                              deploy_db=False
+                          fi
+                      fi
+                  else
+                      if [[  $i = 0 ]]; then
+                          echo "Bom file not start with @Release or @Config or @AsyncConfig or @DBScripts"
+                          exit 1
+                      else
+                          if [[ ( ("$module" == @Config) || ("$module" == @AsyncConfig) || ("$module" == @DBScripts) ||  ("$module" == @Policy) || ("$module" == @Test) ) ]]; then
+                              echo "Proceeding with $module"
+                              if [[ "$module" == @Policy ]]; then
+                                  if [[ ( ("$deploy_check" == 'False') && ("$deploy_db" == 'False') ) ]]; then
+                                      echo "@Config or @AsyncConfig or @DBScripts should come before @Policy"
+                                      exit 1
+                                  else
+                                      deploy_check=False
+                                      deploy_policy=True
+                                      deploy_test=False
+                                      deploy_db=False
+                                  fi
+                              else
+                                  if [[ "$module" == @Test ]]; then
+                                      echo "Module is : $module in Development Environment it wont support"
+                                      exit 1
+                                  else
+                                      if [[ "$module" == @DBScripts ]]; then
+                                          deploy_check=False
+                                          deploy_policy=False
+                                          deploy_test=False
+                                          deploy_db=True
+                                      else
+                                          deploy_check=True
+                                          deploy_policy=False
+                                          deploy_test=False
+                                          deploy_db=False
+                                      fi
+                                  fi
+                              fi
+                          else
+                              if [[ "$deploy_policy" == 'True' ]]; then
+                                  if [[ (( ! -f "$module") || ( $module != *alertPolicy.json)) ]]; then
+                                      echo "Error: $module file or *alertPolicy.json does not exist."
+                                      exit 1
+                                  fi
+                              else
+                                  if [[ "$deploy_db" == 'True' ]]; then
+                                      if [[ (( ! -f "$module") || ( $module != *.sql)) ]]; then
+                                          echo "Error: $module file or *.sql does not exist."
+                                          exit 1
+                                      fi
+                                  else
+                                      if [ ! -d "$module" ]; then
+                                      echo "Error: $module path does not exist."
+                                      exit 1
+                                      else
+                                          if [[ "$deploy_check" == 'True' ]]; then
+                                              if [[ (( ! -f "$module/configuration/deploy.yml") &&  ( ! -f "$module/deploy.yml"))]]; then
+                                                  echo "Error: $module/configuration/deploy.yml or $module/deploy.yml file does not exist."
+                                                  exit 1
+                                              fi
+                                          fi
+                                      fi
+                                  fi
+                              fi
+                          fi
+                      fi
+                  fi
+                  i=$i+1
+              done <$BOM_FILE
+          else
+              echo "Error: Bom file not in Proper format @Release or @Config or @AsyncConfig or @DBScripts not available"
+              exit 1
+          fi
+
+          # - name: Setting Build Number
+          # run: |
+          # Tag_Name="SD."
+          # BUILD_NO=10001
+          # Latest_Tag=$(git tag --sort=committerdate -l $Tag_Name* | tail -n1)
+          # if [ -z "$Latest_Tag" ];
+          # then
+          # BUILD_NO=10001
+          # Tag_Name=""$Tag_Name"10001"
+          # else
+          # Tag_Name=$(perl -pe 's/(\d+)(?!.*\d+)/$1+1/e' <<< $Latest_Tag)
+          # BUILD_NO=`echo "$Tag_Name" | awk -F. '{print $NF}'`
+          # fi
+          # echo "Build Number is: $BUILD_NO"
+        # echo ::set-env name=RELEASE_NO::$BUILD_NO
+
+      - uses: actions/setup-java@v1
+        if: env.ACTION_TYPE == 'RELEASE'
+        with:
+          java-version: '17.0.1' # The JDK version to make available on the path.
+          java-package: jdk # (jre, jdk, or jdk+fx) - defaults to jdk
+          architecture: x64 # (x64 or x86) - defaults to x64
+
+            # - uses: actions/cache@v2
+            # if: env.ACTION_TYPE == 'RELEASE'
+            # with:
+            # path: ~/.m2/repository
+            # key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          # restore-keys: |
+          # ${{ runner.os }}-maven-
+
+
+      - name: Compile
+        id: Compilation
+        if: env.ACTION_TYPE == 'RELEASE'
+        run: |
+          mkdir -p -- $RELEASE_NO
+          while IFS="" read -r module || [ -n "$module" ]
+          do
+              if [[ ("$module" == *@Release*) ]]
+              then
+                  echo "Start compiling $module"
+              else
+                  if [[ ( ("$module" == *@Config*) || ("$module" == *@AsyncConfig*) || ("$module" == *@DBScripts*))]]
+                  then
+                      echo "Module is: $module so compilation ends"
+                      break
+                  else
+                      echo "File Availble: $module"
+                      cd $module/source
+                      if [[ -e 'pom.xml' ]]; then
+                          echo "$module/source Has pom, Compilation in progress"
+                          mvn package -q -DskipTests || exit 1
+                          cp target/*.jar $WORK_DIR/$RELEASE_NO/
+                      else
+                          py_count=`ls -1 *.py 2>/dev/null | wc -l`
+                          if [ $py_count -gt 0 ]; then
+                              echo "$module/source Has .py, zipping in progress"
+                              Zip_File=`echo ${module#$(dirname "$module")/}`
+                              zip -r $Zip_File.zip . || exit 1
+                              cp $Zip_File.zip $WORK_DIR/$RELEASE_NO/
+                          else
+                              yml_file=`echo ${module#$(dirname "$module")/}.yml`
+                              echo "checking yml file : $yml_file"
+                              if [ -f "$yml_file" ]; then
+                                  echo "$module/source Has yml"
+                                  cp ./$yml_file $WORK_DIR/$RELEASE_NO
+                              else
+                                  echo "$module/source does not contain pom.xml or .py or $yml_file file"
+                              fi
+                          fi
+                      fi
+                  fi
+              fi
+              cd $WORK_DIR
+          done < $BOM_FILE
+
+
+          # - name: Load Secrets
+          # if: env.ACTION_TYPE == 'RELEASE'
+          # uses: RichiCoder1/vault-action@v1.0.0
+          # with:
+          # url: https://vault-staging.build.ingka.ikea.com
+          # method: approle
+          # roleId: ${{ secrets.role_id }}
+          # secretId: ${{ secrets.secret_id }}
+          # path: secret/test/kv
+          # secrets: artifactoryAuth artifactoryAccessToken | Artifact_Token
+        # namespace: ilo-fui
+        # id: loadsecrets
+
+      - name: Upload Artifact
+        if: env.ACTION_TYPE == 'RELEASE'
+        run: |
+          echo "Folder are: $WORK_DIR/$RELEASE_NO/"
+          # artifact_tocken=${{ steps.loadsecrets.outputs.Artifact_Token }}
+          artifact_tocken=${{ secrets.ARTIFACTORY }}
+          artifact_user="DPS-ilo-fui"
+          artifact_cre="${artifact_user}:${artifact_tocken}"
+          artifact_url="https://artifactory.build.ingka.ikea.com/artifactory"
+          ls $WORK_DIR/$RELEASE_NO/
+          for file in $RELEASE_NO/*;do
+              echo "Uploding $file to Airtifactory "
+              sha256=$(openssl dgst -sha256 $file|sed 's/^SHA256.*= //')
+              sha1=$(openssl dgst -sha1 $file|sed 's/^SHA.*= //')
+              md5=$(openssl dgst -md5 $file|sed 's/^MD5.*= //')
+              checksum_all="-H X-Checksum-Sha256:${sha256} -H X-Checksum-Sha1:${sha1} -H X-Checksum-Md5:${md5}"
+              if [[ $file == *.jar ]]; then
+                  curl -u $artifact_cre -X PUT "$artifact_url/ilo-fui-maven-snapshot-local/snapshot/$file" -T $file $checksum_all
+              else
+                  curl -u $artifact_cre -X PUT "$artifact_url/ilo-fui-generic-snapshot-local/snapshot/$file" -T $file $checksum_all
+              fi
+          done
+
+
+      - name: Creating Tag
+        run: |
+          Tag_Name="SD."$RELEASE_NO""
+          echo "New Tag name is: $Tag_Name"
+          git tag $Tag_Name
+          git push --tags
