@@ -20,6 +20,7 @@ jobs:
           echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
           Tag_Name="SD."
           echo $bom
+          echo $GITHUB_ENV
           BUILD_NO=10001
           echo $BUILD_NO
           Latest_Tag=$(git tag --sort creatordate -l $Tag_Name* | tail -n1)
@@ -33,6 +34,8 @@ jobs:
           fi
           echo "Build Number is: $BUILD_NO"
           echo "RELEASE_NO=$BUILD_NO" >> $GITHUB_ENV
+          echo $RELEASE_NO
+          echo $BOM_FILE
 
       
       - name: List files in the repository
