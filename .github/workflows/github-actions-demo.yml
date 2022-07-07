@@ -34,8 +34,8 @@ jobs:
           fi
           echo "Build Number is: $BUILD_NO"
           echo "RELEASE_NO=$BUILD_NO" >> $GITHUB_ENV
-          echo $RELEASE_NO
-          echo $BOM_FILE
+          echo RELEASE_NO
+          echo BOM_FILE
 
       
       - name: List files in the repository
