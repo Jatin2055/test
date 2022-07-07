@@ -15,15 +15,23 @@ jobs:
             fetch-depth: '0'
       - name: Checking Variable
         run: |
-            bom = `echo release/snapshot/snapshot.bom`
-            echo "BOM_FILE=$bom" >> $GITHUB_ENV
-            echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
-            Tag_Name="SD.1"
-            echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event first."
-            echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
-            echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
-            echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-            echo "🖥️ The workflow is now ready to test your code on the runner."
+          bom=`echo release/snapshot/snapshot.bom`
+          echo "BOM_FILE=$bom" >> $GITHUB_ENV
+          echo "WORK_DIR=`pwd`" >> $GITHUB_ENV
+          Tag_Name="SD."
+          BUILD_NO=10001
+          Latest_Tag=$(git tag --sort creatordate -l $Tag_Name* | tail -n1)
+          if [ -z "$Latest_Tag" ];
+          then
+              BUILD_NO=10001
+              Tag_Name=""$Tag_Name"10001"
+          else
+              Tag_Name=$(perl -pe 's/(\d+)(?!.*\d+)/$1+1/e' <<< $Latest_Tag)
+              BUILD_NO=`echo "$Tag_Name" | awk -F. '{print $NF}'`
+          fi
+          echo "Build Number is: $BUILD_NO"
+          echo "RELEASE_NO=$BUILD_NO" >> $GITHUB_ENV
+
       
       - name: List files in the repository
         run: |
